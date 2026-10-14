@@ -12,9 +12,13 @@ idf_component_register(
         drivers/Hd44780I2c.cpp
         drivers/NmeaParser.cpp
         drivers/OneWireBus.cpp
+        drivers/SdCard.cpp
 
         # Sensors
         sensors/SensorTemperature.cpp
+
+        # Utils
+        utils/CsvLog.cpp
 
     INCLUDE_DIRS
         .
@@ -27,8 +31,14 @@ idf_component_register(
         esp_driver_i2c
         esp_driver_uart
         esp_driver_gpio
+        esp_driver_spi
+        esp_driver_sdspi
         esp_rom
         esp_common
+        esp_timer
+        fatfs
+        sdmmc
+        vfs
         freertos
         log
 )

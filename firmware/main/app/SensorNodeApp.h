@@ -2,9 +2,13 @@
 #define SENSOR_NODE_APP_H
 
 //===================== INCLUDES ==========================
+#include <cstdio>
+
 #include "ADS1115.h"
 #include "Hd44780I2c.h"
 #include "GPSSimple.h"
+#include "SdCard.h"
+#include "TelemetryData.h"
 
 #include "SensorBatteryVoltage.h"
 #include "SensorAuxVoltage.h"
@@ -40,23 +44,14 @@
 #define GPS_TX GPIO_NUM_17
 #define GPS_BAUD 9600
 
+// Cartão SD (SPI2_HOST), módulo alimentado em 3V3
+#define SD_MOSI GPIO_NUM_23
+#define SD_MISO GPIO_NUM_19
+#define SD_SCK  GPIO_NUM_18
+#define SD_CS   GPIO_NUM_5
+
 //===================== ESTRUTURAS DE DADOS ==========================
-
-// Estrutura com dados dos sensores analógicos
-struct SensorData {
-    float voltageBat = 0.0f;     // Tensão da bateria
-    float voltageAux = 0.0f;     // Tensão auxiliar
-    float current = 0.0f;        // Corrente medida
-    float temperature = 0.0f;    // Temperatura DS18B20
-};
-
-// Estrutura com dados do GPS
-struct GPSInfo {
-    double lat = 0.0f;   // Latitude
-    double lng = 0.0f;   // Longitude
-    int sats = 0;        // Número de satélites
-    double speed = 0.0f; // Velocidade km/h
-};
+// SensorData e GPSInfo ficam em TelemetryData.h (sem ESP-IDF, testável no host)
 
 //===================== CLASSE PRINCIPAL ==========================
 
@@ -74,6 +69,7 @@ private:
     ADS1115 ads_;      // Conversor ADC ADS1115
     Hd44780I2c lcd_;   // Display LCD com I2C
     GPSSimple gps_;    // Módulo GPS
+    SdCard sd_;        // Cartão SD (log CSV)
 
     //-------- Sensores derivados (ADS1115) --------
     SensorBatteryVoltage batterySensor_;
@@ -94,17 +90,23 @@ private:
     TaskHandle_t taskSensorsHandle_ = nullptr;
     TaskHandle_t taskGPSHandle_ = nullptr;
     TaskHandle_t taskDisplayHandle_ = nullptr;
+    TaskHandle_t taskLoggerHandle_ = nullptr;
 
     //-------- Inicializações internas --------
     void initI2C();  // Configura o barramento I2C
     void initLCD();  // Inicia o LCD
     void initADS();  // Inicia o ADS1115
     bool initGPS();  // Inicia GPS (false se a UART falhar)
+    void initSD();   // Monta o SD (falha só gera aviso; o logger tenta de novo)
+
+    FILE *openNewLogFile();   // Próximo LOGnnnn.CSV com cabeçalho; nullptr em falha
+    bool logFull_ = false;    // LOG9999.CSV já existe: logger desiste
 
     //-------- Tasks do FreeRTOS --------
     static void taskSensors(void *arg);   // Leitura dos sensores
     static void taskGPS(void *arg);       // Leitura do GPS
     static void taskDisplay(void *arg);   // Atualiza o LCD
+    static void taskLogger(void *arg);    // Grava o log CSV no SD
 };
 
 #endif

@@ -13,8 +13,9 @@ set(FW_MAIN ${CMAKE_CURRENT_SOURCE_DIR}/../../main)
 add_executable(test_host
     test_host.cpp
     ${FW_MAIN}/drivers/NmeaParser.cpp
+    ${FW_MAIN}/utils/CsvLog.cpp
 )
-target_include_directories(test_host PRIVATE ${FW_MAIN}/drivers ${FW_MAIN}/utils)
+target_include_directories(test_host PRIVATE ${FW_MAIN}/app ${FW_MAIN}/drivers ${FW_MAIN}/utils)
 
 enable_testing()
 add_test(NAME host_tests COMMAND test_host)

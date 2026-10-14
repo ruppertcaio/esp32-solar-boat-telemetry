@@ -1,12 +1,14 @@
-// Testes no host das partes puras do firmware (NmeaParser, Average, CRC-8).
+// Testes no host das partes puras do firmware (NmeaParser, Average, CRC-8, CSV).
 // Retorna != 0 se algum CHECK falhar.
 
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 
 #include "Average.h"
 #include "Crc8.h"
+#include "CsvLog.h"
 #include "NmeaParser.h"
 
 static int failures = 0;
@@ -154,6 +156,71 @@ static void testCrc8Maxim() {
     CHECK(crc8Maxim(sp, 8) != sp[8]);
 }
 
+// =====================================================
+// Log CSV
+// Valores escolhidos longe de empates de arredondamento:
+//   12.6f = 12.6000003... -> "12.600"   5.05f = 5.0500001... -> "5.050"
+//   3.2f  = 3.2000000...  -> "3.200"    25.5f é exato      -> "25.50"
+//   12.34 -> "12.3" (%.1f); lat/lng já têm 6 casas
+// =====================================================
+static void testCsvLine() {
+    CHECK(std::strcmp(csvHeader(),
+        "uptime_ms,vbat_v,vaux_v,current_a,temp_c,lat,lng,speed_kmh,sats\n") == 0);
+
+    SensorData s;
+    s.voltageBat = 12.6f;
+    s.voltageAux = 5.05f;
+    s.current = 3.2f;
+    s.temperature = 25.5f;
+    GPSInfo g;
+    g.lat = -23.55052;
+    g.lng = -46.633308;
+    g.speed = 12.34;
+    g.sats = 7;
+    g.fix = true;
+
+    const char *expected = "12345,12.600,5.050,3.200,25.50,-23.550520,-46.633308,12.3,7\n";
+    const int expectedLen = static_cast<int>(std::strlen(expected));
+
+    char buf[160];
+    CHECK(formatCsvLine(buf, sizeof(buf), 12345, s, g) == expectedLen);
+    CHECK(std::strcmp(buf, expected) == 0);
+
+    // Truncamento: precisa de strlen + 1 (terminador)
+    CHECK(formatCsvLine(buf, 10, 12345, s, g) == -1);
+    CHECK(formatCsvLine(buf, expectedLen, 12345, s, g) == -1);
+    CHECK(formatCsvLine(buf, expectedLen + 1, 12345, s, g) == expectedLen);
+
+    // NAN -> campo vazio (demais valores no padrão 0)
+    SensorData n;
+    n.voltageBat = NAN;
+    n.temperature = NAN;
+    CHECK(formatCsvLine(buf, sizeof(buf), 0, n, GPSInfo{}) > 0);
+    CHECK(std::strcmp(buf, "0,,0.000,0.000,,,,,0\n") == 0);   // sem fix: posição vazia
+
+    // Sem fix: lat/lng/velocidade vazios mesmo com valores antigos no struct
+    g.fix = false;
+    CHECK(formatCsvLine(buf, sizeof(buf), 1, s, g) > 0);
+    CHECK(std::strcmp(buf, "1,12.600,5.050,3.200,25.50,,,,7\n") == 0);
+}
+
+static void testLogFileNames() {
+    char name[16];
+    CHECK(nextLogFileName(name, sizeof(name), 0));
+    CHECK(std::strcmp(name, "LOG0001.CSV") == 0);
+    CHECK(nextLogFileName(name, sizeof(name), 41));
+    CHECK(std::strcmp(name, "LOG0042.CSV") == 0);
+    CHECK(!nextLogFileName(name, sizeof(name), 9999));   // não cabe em 8.3
+    CHECK(!nextLogFileName(name, 11, 0));                // sem espaço para '\0'
+
+    CHECK(parseLogIndex("LOG0042.CSV") == 42);
+    CHECK(parseLogIndex("log0007.csv") == 7);            // aceita minúsculas
+    CHECK(parseLogIndex("DATA.TXT") == -1);
+    CHECK(parseLogIndex("LOG042.CSV") == -1);            // 3 dígitos
+    CHECK(parseLogIndex("LOG00A2.CSV") == -1);
+    CHECK(parseLogIndex("LOG0042.TXT") == -1);
+}
+
 int main() {
     testNmeaChecksum();
     testNmeaRmc();
@@ -162,6 +229,8 @@ int main() {
     testCoordinateConversion();
     testAverage();
     testCrc8Maxim();
+    testCsvLine();
+    testLogFileNames();
 
     if (failures == 0) {
         std::printf("Todos os testes passaram.\n");
