@@ -1,0 +1,4 @@
+# ESP32 DevKit-V1 (ESP-IDF v5.5.1)
+# Demais opções do sdkconfig original (flash 2MB, CONFIG_FREERTOS_HZ=100,
+# log INFO, CPU 160 MHz) já são os padrões do IDF e não precisam ser fixadas.
+CONFIG_IDF_TARGET="esp32"
